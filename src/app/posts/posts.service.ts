@@ -4,6 +4,8 @@ import { HttpClient } from '@angular/common/http';
 import { Subject } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Router } from '@angular/router';
+import { Title } from '@angular/platform-browser';
+import { Content } from '@angular/compiler/src/render3/r3_ast';
 
 @Injectable({ providedIn: 'root' })  // this means instead of putting it into provide array of app.module it will create instance from here too(same)
 
@@ -20,7 +22,8 @@ export class PostsService {
           return {
             title: post.title,
             content: post.content,
-            id: post._id
+            id: post._id,
+            imagePath: post.imagePath
           };
         });
       }))
@@ -34,13 +37,18 @@ export class PostsService {
     return this.postsUpdated.asObservable();
   }
 
-  addPost(title: string, content: string) {
-    const post: Post = { id: null, title, content };
-    this.http.post<{ message: string, postId: string }>('http://localhost:3000/api/posts', post)
+  addPost(title: string, content: string, image: File) {
+    // const post: Post = { id: null, title, content , };
+    const postData = new FormData();
+    postData.append("title", title);
+    postData.append("content", content);
+    postData.append("image", image, title);
+    this.http.post<{ message: string, post: Post }>('http://localhost:3000/api/posts', postData)
       .subscribe((responseData) => {
+        const post: Post = { id: responseData.post.id, title: title, content: content, imagePath: responseData.post.imagePath };
         console.log(responseData.message);
-        const id = responseData.postId;
-        post.id = id;
+        // const id = responseData.postId;
+        // post.id = id;
         this.posts.push(post);
         this.postsUpdated.next([...this.posts]);
         this.router.navigate(['/']);
@@ -56,12 +64,23 @@ export class PostsService {
       });
   }
 
-  updatePost(id: string, title: string, content: string) {
-    const post: Post = { id: id, title: title, content: content };
-    this.http.put("http://localhost:3000/api/posts/" + id, post)
+  updatePost(id: string, title: string, content: string, image: File | string) {
+    let postData :Post | FormData;
+    if (typeof (image) == 'object') {
+      postData = new FormData();
+      postData.append("id", id);
+      postData.append("title", title);
+      postData.append("content", content);
+      postData.append("image", image, title);
+    } else {
+      postData = { id: id, title: title, content: content, imagePath: image }
+    }
+    // const post: Post = { id: id, title: title, content: content, imagePath: null };
+    this.http.put("http://localhost:3000/api/posts/" + id, postData)
       .subscribe((response) => {
         const updatePosts = [...this.posts];
-        const oldPostIndex = updatePosts.findIndex(p => p.id === post.id);
+        const oldPostIndex = updatePosts.findIndex(p => p.id === id);
+        const post : Post = { id: id, title: title, content: content, imagePath: ""}
         updatePosts[oldPostIndex] = post;
         this.posts = updatePosts;
         this.postsUpdated.next([...this.posts]);
@@ -71,6 +90,6 @@ export class PostsService {
 
   getPost(id: string) {
     // return { ...this.posts.find(p => p.id === id) };
-    return this.http.get<{ _id: string, title: string, content: string }>("http://localhost:3000/api/posts/" + id)
+    return this.http.get<{ _id: string, title: string, content: string, imagePath: string }>("http://localhost:3000/api/posts/" + id);
   }
 }
